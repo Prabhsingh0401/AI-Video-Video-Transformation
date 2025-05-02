@@ -6,6 +6,7 @@ import { useAuth } from "@clerk/nextjs";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
 
 export default function VideoUploadForm({ onProcessingComplete }) {
+
   const { userId } = useAuth();
   const [videoURL, setVideoURL] = useState("");
   const [uploadedFileURL, setUploadedFileURL] = useState("");
@@ -31,7 +32,6 @@ export default function VideoUploadForm({ onProcessingComplete }) {
     }
   }, [isPolling]);
 
-  // Auto-polling effect
   useEffect(() => {
     let pollingInterval;
     
@@ -48,14 +48,14 @@ export default function VideoUploadForm({ onProcessingComplete }) {
           setProcessingStage("complete");
           setIsPolling(false);
           
-          // Store video transformation to MongoDB via our API
+          // Store video transformation to MongoDB with relevant Metadata
           await storeVideoTransformation(cloudinaryUrl, resultData.cloudinaryUrl, resultData.metadata);
           
           if (onProcessingComplete) {
             onProcessingComplete(resultData.cloudinaryUrl, resultData.metadata);
           }
           
-          // Stop polling once we get results
+          // Stop polling once we get results - This is here to get messages from API about the health of our respose for developer
           clearInterval(pollingInterval);
         } else {
           console.log("Still processing, waiting for results:", resultData);
@@ -84,17 +84,18 @@ export default function VideoUploadForm({ onProcessingComplete }) {
     };
   }, [requestId, processingStage, onProcessingComplete, cloudinaryUrl]);
 
-  // Function to store video transformation to MongoDB via our API
+  // Function to store video transformation to MongoDB
   const storeVideoTransformation = async (originalVideoUrl, processedVideoUrl, metadata) => {
     if (!userId || !processedVideoUrl) return;
     
     try {
-      const response = await fetch('${BACKEND_URL}/store-video', {
+      const response = await fetch(`${BACKEND_URL}/api/transformations`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          userId, 
           originalVideoUrl,
           processedVideoUrl,
           prompt: transformationPrompt,
@@ -126,7 +127,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
         body: JSON.stringify({
           videoUrl,
           prompt: transformationPrompt,
-          userId // Include the userId here
+          userId 
         }),
       });
       
@@ -136,7 +137,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
         console.log("Processed video stored to Cloudinary:", storeData);
         setCloudinaryProcessedUrl(storeData.cloudinaryUrl);
         
-        // Store video transformation to MongoDB via our API
+        // Store video transformation to MongoDB 
         await storeVideoTransformation(cloudinaryUrl, storeData.cloudinaryUrl, storeData.metadata);
         
         // Update the video displayed to the user
@@ -186,6 +187,12 @@ export default function VideoUploadForm({ onProcessingComplete }) {
       setError("Please enter a prompt.");
       return;
     }
+    
+    // Check if user is signed in
+    if (!userId) {
+      setError("Please sign in to transform videos.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -193,7 +200,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
     setIsPolling(false);
     
     try {
-      // First, upload to Cloudinary through our backend
+      // Uploads to Cloudinary through our backend then to FAL AI
       console.log("Uploading to Cloudinary via backend:", finalURL);
       const uploadRes = await fetch(`${BACKEND_URL}/upload`, {
         method: "POST",
@@ -203,8 +210,8 @@ export default function VideoUploadForm({ onProcessingComplete }) {
         body: JSON.stringify({
           fileUrl: finalURL,
           prompt: transformationPrompt,
+          userId 
         }),
-        // Add timeout and credentials settings
         credentials: 'include',
       });
 
@@ -217,7 +224,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
       console.log("Upload successful, Cloudinary URL:", uploadData.cloudinaryUrl);
       setCloudinaryUrl(uploadData.cloudinaryUrl);
       
-      // Then, process with Fal AI through our backend
+      // Processes with Fal AI 
       setProcessingStage("processing");
       console.log("Processing with Fal AI:", uploadData.cloudinaryUrl);
       const processRes = await fetch(`${BACKEND_URL}/process-video`, {
@@ -228,9 +235,8 @@ export default function VideoUploadForm({ onProcessingComplete }) {
         body: JSON.stringify({
           videoUrl: uploadData.cloudinaryUrl,
           prompt: transformationPrompt,
-          userId // Include the userId here
+          userId 
         }),
-        // Add timeout and credentials settings
         credentials: 'include',
       });
 
@@ -244,17 +250,17 @@ export default function VideoUploadForm({ onProcessingComplete }) {
 
       if (processData.requestId) {
         setRequestId(processData.requestId);
-        // Auto-polling will start from here via the useEffect
+        // Auto-polling will start from here via the useEffect for Developer for debugging
       }
       
       if (processData.cloudinaryUrl) {
-        // Immediate response with processed video
+        // Responses with processed video
         setCloudinaryProcessedUrl(processData.cloudinaryUrl);
         setProcessedUrl(processData.processedUrl || processData.cloudinaryUrl);
         setProcessingStage("complete");
         setIsPolling(false);
         
-        // Store video transformation to MongoDB via our API
+        // Store video transformation to MongoDB
         await storeVideoTransformation(
           uploadData.cloudinaryUrl, 
           processData.cloudinaryUrl, 
@@ -276,7 +282,6 @@ export default function VideoUploadForm({ onProcessingComplete }) {
       } else {
         // If we don't have a processedUrl but have a requestId, we'll poll for results
         console.log("No immediate result. Will poll for completion using requestId:", processData.requestId);
-        // The useEffect will handle the polling
       }
 
     } catch (err) {
@@ -289,7 +294,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
     }
   };
 
-  // Manual retry function - kept as backup
+  // Manual retry function - kept as backup if we don't get relevant response
   const handleManualRetry = async () => {
     if (!requestId) return;
     
@@ -306,7 +311,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
         setProcessingStage("complete");
         setIsPolling(false);
         
-        // Store video transformation to MongoDB via our API
+        // Store video transformation to MongoDB
         await storeVideoTransformation(cloudinaryUrl, resultData.cloudinaryUrl, resultData.metadata);
         
         if (onProcessingComplete) {
@@ -325,7 +330,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
   };
 
   return (
-    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 w-full md:w-[50vw] lg:w-[40vw]">
+    <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 lg:w-[40vw]">
       <h2 className="text-lg font-semibold mb-4">
         Upload or provide a link to video
       </h2>
@@ -362,7 +367,7 @@ export default function VideoUploadForm({ onProcessingComplete }) {
 
       <button
         onClick={handleSubmit}
-        disabled={loading || isPolling}
+        disabled={loading || isPolling || !userId}
         className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition disabled:opacity-50"
       >
         {loading ? (
@@ -373,6 +378,12 @@ export default function VideoUploadForm({ onProcessingComplete }) {
               : "Processing with AI..."
         ) : isPolling ? `Waiting for results${progressDots}` : "Transform Video"}
       </button>
+
+      {!userId && (
+        <div className="mt-2 text-sm text-orange-600">
+          Please sign in to transform videos
+        </div>
+      )}
 
       {processedUrl && (
         <div className="mt-4 text-sm text-green-600 break-words">

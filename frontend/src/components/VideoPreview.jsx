@@ -2,15 +2,14 @@
 import React from "react";
 
 export default function VideoPreview({ videoUrl, metadata }) {
-  // Function to extract the filename from the URL
+  // Function to extract the filename from cloudinary
   const extractFilename = (url) => {
     if (!url) return "transformed-video.mp4";
     
-    // Try to extract the filename from Cloudinary URL
+    // Extracts file from cloudinary to previw in frontend
     if (url.includes('cloudinary.com')) {
       const parts = url.split('/');
       const filename = parts[parts.length - 1];
-      // Remove any query params
       return filename.split('?')[0] || "cloudinary-video.mp4";
     }
     

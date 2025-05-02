@@ -7,19 +7,45 @@ import mongoose from 'mongoose';
 import filesize from 'filesize';
 import pkg from 'get-video-duration';
 import fetch from 'node-fetch';
+import videoTransformationRoutes from './route/VideoTranformation/route.js';
 
 dotenv.config();
 
 const app = express();
 const { getVideoDuration } = pkg;
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+const corsOptions = {
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  methods: ['GET', 'POST', 'OPTIONS'], 
+  credentials: true,
+  optionsSuccessStatus: 204, 
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: '50mb' }));
+
+try {
+  fal.config({
+    credentials: process.env.FAL_AI_KEY,
+  });
+  console.log('Fal AI configured successfully');
+} catch (error) {
+  console.error('Error configuring Fal AI:', error);
+}
+
+// Configure Cloudinary 
+try {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+  console.log('Cloudinary configured successfully');
+} catch (error) {
+  console.error('Error configuring Cloudinary:', error);
+}
 
 // Define the VideoTransformation schema
 const VideoTransformationSchema = new mongoose.Schema({
@@ -56,39 +82,16 @@ const VideoTransformationSchema = new mongoose.Schema({
 const VideoTransformation = mongoose.models.VideoTransformation || 
 mongoose.model('VideoTransformation', VideoTransformationSchema);
 
-// Improved CORS configuration
-const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  methods: ['GET', 'POST'],
-  credentials: true,
-  optionsSuccessStatus: 200, // For legacy browser support
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
+// Use the routes
+app.use('/api/transformations', videoTransformationRoutes);
 
-app.use(cors(corsOptions));
-app.use(express.json({ limit: '50mb' }));
-
-// Configure Fal AI with error handling
-try {
-  fal.config({
-    credentials: process.env.FAL_AI_KEY,
-  });
-  console.log('Fal AI configured successfully');
-} catch (error) {
-  console.error('Error configuring Fal AI:', error);
-}
-
-// Configure Cloudinary with error handling
-try {
-  cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-    api_key: process.env.CLOUDINARY_API_KEY,
-    api_secret: process.env.CLOUDINARY_API_SECRET,
-  });
-  console.log('Cloudinary configured successfully');
-} catch (error) {
-  console.error('Error configuring Cloudinary:', error);
-}
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb+srv://prableensingh0401:MRL5gJGrljBkDObi@videotransformation.xco6ptv.mongodb.net/?retryWrites=true&w=majority&appName=VideoTransformation', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('MongoDB connected'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 // Default route
 app.get("/", (req, res) => {
@@ -319,7 +322,7 @@ app.post('/process-video', async (req, res) => {
     console.log('Job submitted successfully, request_id:', request_id);
     
     try {
-      // Poll for the result with timeout
+      // Poll for the result with timeout for debugging not relevant for client
       const result = await Promise.race([
         fal.queue.result("fal-ai/hunyuan-video/video-to-video", {
           requestId: request_id
@@ -349,7 +352,7 @@ app.post('/process-video', async (req, res) => {
         cloudinaryResult = await uploadToCloudinary(processedVideoUrl);
         console.log('Processed video stored to Cloudinary:', cloudinaryResult.secure_url);
         
-        // Let's gather some metadata about the video
+        // Metadata about the video
         metadata = {
           size: filesize(cloudinaryResult.bytes),
           format: cloudinaryResult.format,
@@ -407,85 +410,7 @@ app.post('/process-video', async (req, res) => {
   }
 });
 
-// Direct video transformation storage endpoint that mirrors the Next.js API route
-app.post('/store-video', async (req, res) => {
-  const { originalVideoUrl, processedVideoUrl, prompt, metadata, userId } = req.body;
-  
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized - userId is required' });
-  }
-  
-  if (!processedVideoUrl) {
-    return res.status(400).json({ error: 'Processed video URL is required' });
-  }
-  
-  try {
-    // Create a new transformation document
-    const videoTransformation = new VideoTransformation({
-      userId,
-      originalVideoUrl: originalVideoUrl || '',
-      processedVideoUrl,
-      prompt: prompt || '',
-      metadata: metadata || {},
-      createdAt: new Date()
-    });
-    
-    // Save to MongoDB
-    const result = await videoTransformation.save();
-    
-    res.status(200).json({
-      success: true,
-      transformationId: result._id,
-      message: 'Video transformation saved successfully'
-    });
-  } catch (error) {
-    console.error('Error storing video transformation:', error);
-    res.status(500).json({ error: 'Failed to store video transformation' });
-  }
-});
-
-// Endpoint to fetch video transformations by user ID
-app.get('/video-transformations/:userId', async (req, res) => {
-  const { userId } = req.params;
-  
-  if (!userId) {
-    return res.status(400).json({ error: 'userId is required' });
-  }
-  
-  try {
-    const transformations = await VideoTransformation.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(20); // Limit to most recent 20 transformations
-    
-    res.status(200).json({ transformations });
-  } catch (error) {
-    console.error('Error fetching video transformations:', error);
-    res.status(500).json({ error: 'Failed to fetch video transformations' });
-  }
-});
-
-// Video history endpoint that matches the Next.js API route
-app.get('/video-history/:userId', async (req, res) => {
-  const { userId } = req.params;
-  
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized - userId is required' });
-  }
-  
-  try {
-    // Fetch video transformations for the user
-    const transformations = await VideoTransformation.find({ userId })
-      .sort({ createdAt: -1 })
-      .limit(20);
-    
-    res.status(200).json({ transformations });
-  } catch (error) {
-    console.error('Error fetching video history:', error);
-    res.status(500).json({ error: 'Failed to fetch video history' });
-  }
-});
-
-// Helper function to recursively find a video URL in a response object
+// Helper function to recursively find a video URL in a response object because initialy it wasn't able to fetch so made this function
 function findVideoUrlInObject(obj) {
   if (!obj || typeof obj !== 'object') {
     return null;
@@ -510,7 +435,6 @@ function findVideoUrlInObject(obj) {
   
   // Search in data object if it exists
   if (obj.data && typeof obj.data === 'object') {
-    // Special check for common response structures
     if (obj.data.output && typeof obj.data.output === 'object') {
       if (obj.data.output.video_url) return obj.data.output.video_url;
       if (obj.data.output.url) return obj.data.output.url;

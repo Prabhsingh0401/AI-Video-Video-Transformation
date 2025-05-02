@@ -20,9 +20,8 @@ export default function AIVideoTransformation() {
   return (
     <div className="min-h-screen bg-white py-12">
       <div className="container mx-auto px-4">
-        {/* Auth and Header Section */}
         <div className="flex justify-between items-center mb-3">
-          <h1 className="text-7xl text-center font-bold text-black">AI Video Transformation</h1>
+          <h1 className="text-7xl text-left font-bold text-black">AI Video Transformation</h1>
           {!isSignedIn ? (
             <SignInButton mode="modal">
               <button className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition">
@@ -41,7 +40,7 @@ export default function AIVideoTransformation() {
         {/* Main Content Section */}
         <div className="flex flex-col px-50 md:flex-row gap-8 items-start">
           <VideoUploadForm onProcessingComplete={handleProcessingComplete} />
-          <div className="w-full md:w-[40vw]">
+          <div className="w-[60vw] lg:w-[40vw]">
             <VideoPreview videoUrl={processedVideoUrl} metadata={videoMetadata} />
           </div>
         </div>

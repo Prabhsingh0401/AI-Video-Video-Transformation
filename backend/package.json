@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@clerk/clerk-sdk-node": "^5.1.6",
     "@fal-ai/client": "^1.4.0",
     "@fal-ai/serverless-client": "^0.15.0",
     "cloudinary": "^2.6.0",

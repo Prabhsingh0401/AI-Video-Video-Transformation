@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "@clerk/nextjs";
 import { formatDistanceToNow } from "date-fns";
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:5000";
+
 export default function VideoHistory() {
   const { userId, isSignedIn } = useAuth();
   const [transformations, setTransformations] = useState([]);
@@ -11,7 +13,7 @@ export default function VideoHistory() {
   const [selectedVideo, setSelectedVideo] = useState(null);
 
   useEffect(() => {
-    // Only fetch if the user is signed in
+    // Only fetch the videos from mongoDB if the user is signed in
     if (isSignedIn && userId) {
       fetchVideoHistory();
     }
@@ -22,8 +24,7 @@ export default function VideoHistory() {
     setError("");
     
     try {
-      // Using our Next.js API route
-      const response = await fetch(`/api/video-history`);
+      const response = await fetch(`${BACKEND_URL}/api/transformations/${userId}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch video history");
@@ -70,6 +71,7 @@ export default function VideoHistory() {
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
           <p className="mt-2 text-gray-600">Loading your video history...</p>
         </div>
+        // Some edge case and error handling if the user is new then gives this message
       ) : error ? (
         <div className="bg-red-50 text-red-700 p-4 rounded-md">{error}</div>
       ) : transformations.length === 0 ? (
