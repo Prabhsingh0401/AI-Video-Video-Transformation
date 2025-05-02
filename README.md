@@ -80,7 +80,7 @@ MongoDB (Store metadata linked to Clerk user)
 
 ```bash
 git clone https://github.com/Prabhsingh0401/AI-Video-Video-Transformation
-cd ai-video-transform
+cd ai-video-video-transformation
 ```
 
 ### 2. Install Dependencies
