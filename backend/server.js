@@ -15,7 +15,7 @@ const app = express();
 const { getVideoDuration } = pkg;
 
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.FRONTEND_URL || 'https://ai-video-video-transformation.vercel.app/',
   methods: ['GET', 'POST', 'OPTIONS'], 
   credentials: true,
   optionsSuccessStatus: 204, 
